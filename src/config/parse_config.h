@@ -1204,6 +1204,9 @@ FuncType parse_func_name(char *func_name, Arg *arg, char *arg_value,
 		(*arg).i = parse_direction(arg_value);
 	} else if (strcmp(func_name, "toggle_all_floating") == 0) {
 		func = toggle_all_floating;
+	} else if (strcmp(func_name, "dumpclients") == 0) {
+		func = dumpclients;
+		(*arg).v = strdup(arg_value ? arg_value : "/tmp/mango_clients.json");
 	} else {
 		return NULL;
 	}

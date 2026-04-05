@@ -1894,3 +1894,56 @@ int32_t toggle_all_floating(const Arg *arg) {
 	}
 	return 0;
 }
+
+static void json_escape_string(FILE *f, const char *s) {
+	fputc('"', f);
+	if (!s) { fputc('"', f); return; }
+	for (; *s; s++) {
+		switch (*s) {
+		case '"':  fputs("\\\"", f); break;
+		case '\\': fputs("\\\\", f); break;
+		case '\n': fputs("\\n", f); break;
+		case '\r': fputs("\\r", f); break;
+		case '\t': fputs("\\t", f); break;
+		default:
+			if ((unsigned char)*s < 0x20)
+				fprintf(f, "\\u%04x", (unsigned char)*s);
+			else
+				fputc(*s, f);
+		}
+	}
+	fputc('"', f);
+}
+
+int32_t dumpclients(const Arg *arg) {
+	const char *filepath = arg->v;
+	if (!filepath || filepath[0] == '\0')
+		filepath = "/tmp/mango_clients.json";
+
+	FILE *f = fopen(filepath, "w");
+	if (!f) return 0;
+
+	Client *c;
+	int first = 1;
+	fprintf(f, "[");
+	wl_list_for_each(c, &clients, link) {
+		if (!first) fprintf(f, ",");
+		fprintf(f, "{\"appid\":");
+		json_escape_string(f, client_get_appid(c));
+		fprintf(f, ",\"title\":");
+		json_escape_string(f, client_get_title(c));
+		fprintf(f, ",\"tags\":%u", c->tags);
+		fprintf(f, ",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d",
+				c->geom.x, c->geom.y, c->geom.width, c->geom.height);
+		fprintf(f, ",\"floating\":%d,\"minimized\":%d",
+				c->isfloating, c->isminimized);
+		fprintf(f, ",\"activated\":%d", (c == focustop(selmon)) ? 1 : 0);
+		fprintf(f, ",\"monitor\":");
+		json_escape_string(f, c->mon ? c->mon->wlr_output->name : "");
+		fprintf(f, "}");
+		first = 0;
+	}
+	fprintf(f, "]\n");
+	fclose(f);
+	return 0;
+}
