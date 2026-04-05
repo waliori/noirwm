@@ -1915,6 +1915,34 @@ static void json_escape_string(FILE *f, const char *s) {
 	fputc('"', f);
 }
 
+/* Write PPM image (no external deps needed).
+ * Most Wayland buffers are ARGB8888 or XRGB8888 (little-endian),
+ * meaning memory layout is B,G,R,A. Some are ABGR8888 (R,G,B,A).
+ * DRM_FORMAT_ARGB8888 = 0x34325241, DRM_FORMAT_ABGR8888 = 0x34324241 */
+static void write_ppm(const char *path, const uint8_t *data, int width,
+		int height, size_t stride, uint32_t format) {
+	FILE *f = fopen(path, "wb");
+	if (!f) return;
+
+	fprintf(f, "P6\n%d %d\n255\n", width, height);
+
+	int r_off = 2, g_off = 1, b_off = 0; /* ARGB/XRGB default */
+	/* ABGR/XBGR formats: 0x34324241 and 0x34324258 */
+	if (format == 0x34324241 || format == 0x34324258) {
+		r_off = 0; g_off = 1; b_off = 2;
+	}
+
+	for (int y = 0; y < height; y++) {
+		const uint8_t *row = data + y * stride;
+		for (int x = 0; x < width; x++) {
+			const uint8_t *px = row + x * 4;
+			uint8_t rgb[3] = { px[r_off], px[g_off], px[b_off] };
+			fwrite(rgb, 1, 3, f);
+		}
+	}
+	fclose(f);
+}
+
 int32_t dumpclients(const Arg *arg) {
 	const char *filepath = arg->v;
 	if (!filepath || filepath[0] == '\0')
@@ -1945,5 +1973,109 @@ int32_t dumpclients(const Arg *arg) {
 	}
 	fprintf(f, "]\n");
 	fclose(f);
+	return 0;
+}
+
+int32_t dumpscreens(const Arg *arg) {
+	const char *dirpath = arg->v;
+	if (!dirpath || dirpath[0] == '\0')
+		dirpath = "/tmp/mango_screens";
+
+	/* Create output directory */
+	mkdir(dirpath, 0755);
+
+	Client *c;
+	int idx = 0;
+	wl_list_for_each(c, &clients, link) {
+		struct wlr_surface *surface = client_surface(c);
+		if (!surface || !surface->buffer)
+			continue;
+
+		struct wlr_buffer *buffer = &surface->buffer->base;
+		void *data = NULL;
+		uint32_t format = 0;
+		size_t stride = 0;
+
+		if (!wlr_buffer_begin_data_ptr_access(buffer,
+				WLR_BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride))
+			continue;
+
+		/* Build filename: dir/appid_idx.ppm */
+		char filepath[512];
+		const char *appid = client_get_appid(c);
+		if (!appid || appid[0] == '\0') appid = "unknown";
+
+		/* Sanitize appid for filename */
+		char safe_appid[128];
+		int j = 0;
+		for (int i = 0; appid[i] && j < 126; i++) {
+			char ch = appid[i];
+			if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+				(ch >= '0' && ch <= '9') || ch == '-' || ch == '_')
+				safe_appid[j++] = ch;
+			else
+				safe_appid[j++] = '_';
+		}
+		safe_appid[j] = '\0';
+
+		snprintf(filepath, sizeof(filepath), "%s/%s_%d.ppm",
+				dirpath, safe_appid, idx);
+
+		write_ppm(filepath, data, buffer->width, buffer->height, stride, format);
+		wlr_buffer_end_data_ptr_access(buffer);
+		idx++;
+	}
+
+	/* Also write an index JSON with appid -> filename mapping */
+	char indexpath[512];
+	snprintf(indexpath, sizeof(indexpath), "%s/index.json", dirpath);
+	FILE *f = fopen(indexpath, "w");
+	if (f) {
+		int first = 1;
+		idx = 0;
+		fprintf(f, "[");
+		wl_list_for_each(c, &clients, link) {
+			struct wlr_surface *surface = client_surface(c);
+			if (!surface || !surface->buffer) {
+				idx++;
+				continue;
+			}
+			if (!first) fprintf(f, ",");
+			fprintf(f, "{\"appid\":");
+			json_escape_string(f, client_get_appid(c));
+			fprintf(f, ",\"title\":");
+			json_escape_string(f, client_get_title(c));
+
+			char safe_appid[128];
+			const char *appid = client_get_appid(c);
+			if (!appid || appid[0] == '\0') appid = "unknown";
+			int j = 0;
+			for (int i = 0; appid[i] && j < 126; i++) {
+				char ch = appid[i];
+				if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+					(ch >= '0' && ch <= '9') || ch == '-' || ch == '_')
+					safe_appid[j++] = ch;
+				else
+					safe_appid[j++] = '_';
+			}
+			safe_appid[j] = '\0';
+
+			char filepath[512];
+			snprintf(filepath, sizeof(filepath), "%s_%d.ppm", safe_appid, idx);
+			fprintf(f, ",\"file\":");
+			json_escape_string(f, filepath);
+			fprintf(f, ",\"tags\":%u", c->tags);
+			fprintf(f, ",\"monitor\":");
+			json_escape_string(f, c->mon ? c->mon->wlr_output->name : "");
+			fprintf(f, ",\"w\":%d,\"h\":%d", surface->buffer->base.width,
+					surface->buffer->base.height);
+			fprintf(f, "}");
+			first = 0;
+			idx++;
+		}
+		fprintf(f, "]\n");
+		fclose(f);
+	}
+
 	return 0;
 }
