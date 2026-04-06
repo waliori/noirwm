@@ -2003,27 +2003,9 @@ static uint8_t *read_surface_pixels(struct wlr_surface *surface,
 	struct wlr_buffer *buffer = &surface->buffer->base;
 	int w = buffer->width, h = buffer->height;
 
-	/* Fast path: direct CPU access (works for SHM buffers) */
-	void *data = NULL;
-	uint32_t format = 0;
-	size_t stride = 0;
-	if (wlr_buffer_begin_data_ptr_access(buffer,
-			WLR_BUFFER_DATA_PTR_ACCESS_READ, &data, &format, &stride)) {
-		size_t size = stride * h;
-		uint8_t *copy = malloc(size);
-		if (copy) {
-			memcpy(copy, data, size);
-			*out_w = w;
-			*out_h = h;
-			*out_format = format;
-			*out_stride = (uint32_t)stride;
-			wlr_buffer_end_data_ptr_access(buffer);
-			return copy;
-		}
-		wlr_buffer_end_data_ptr_access(buffer);
-	}
-
-	/* Slow path: use texture read_pixels (works for DMA-BUF) */
+	/* Use texture read_pixels — works reliably for both SHM and DMA-BUF.
+	 * Direct data_ptr access (SHM fast path) can return stale/zero data
+	 * for suspended clients on inactive tags. */
 	struct wlr_texture *texture = surface->buffer->texture;
 	if (!texture)
 		return NULL;
