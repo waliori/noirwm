@@ -1207,9 +1207,6 @@ FuncType parse_func_name(char *func_name, Arg *arg, char *arg_value,
 	} else if (strcmp(func_name, "dumpclients") == 0) {
 		func = dumpclients;
 		(*arg).v = strdup(arg_value ? arg_value : "/tmp/mango_clients.json");
-	} else if (strcmp(func_name, "dumpscreens") == 0) {
-		func = dumpscreens;
-		(*arg).v = strdup(arg_value ? arg_value : "/tmp/mango_screens");
 	} else {
 		return NULL;
 	}
