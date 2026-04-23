@@ -934,9 +934,13 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass *pass,
 		pixman_region32_translate(&translucent_region, dst_box.x, dst_box.y);
 		pixman_region32_intersect(&translucent_region, &translucent_region, options->clip);
 
-		// Render the blur into its own buffer
+		// Render the blur into its own buffer.
+		// Clip is already in buffer-coords — override the caller's composed
+		// transform (set for the stencil pass below) to NORMAL so
+		// get_main_buffer_blur's internal damage transform is identity.
 		struct fx_render_blur_pass_options blur_options = *fx_options;
 		blur_options.tex_options.base.clip = &translucent_region;
+		blur_options.tex_options.base.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 		blur_options.current_buffer = pass->buffer;
 		buffer = get_main_buffer_blur(pass, &blur_options);
 	}
@@ -965,6 +969,8 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass *pass,
 		.height = buffer->buffer->height,
 	};
 	tex_options->base.texture = &blur_texture->wlr_texture;
+	// scenefx PR #154 backport: FBO is already in output orientation.
+	tex_options->base.transform = WL_OUTPUT_TRANSFORM_NORMAL;
 	fx_render_pass_add_texture(pass, tex_options);
 
 	wlr_texture_destroy(&blur_texture->wlr_texture);

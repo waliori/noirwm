@@ -2007,7 +2007,9 @@ static void scene_entry_render(struct render_list_entry *entry, const struct ren
 							.texture = texture,
 							.src_box = scene_buffer->src_box,
 							.dst_box = dst_box,
-							.transform = WL_OUTPUT_TRANSFORM_NORMAL,
+							// scenefx PR #154 backport: composed transform, not
+							// NORMAL — stencil must sample alpha at output orientation.
+							.transform = transform,
 							.clip = &render_region, // Render with the smaller region, clipping CSD
 							.alpha = &blur_alpha,
 							.filter_mode = WLR_SCALE_FILTER_BILINEAR,
