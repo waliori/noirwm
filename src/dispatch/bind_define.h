@@ -356,7 +356,11 @@ int32_t killclient(const Arg *arg) {
 		return 0;
 	c = selmon->sel;
 	if (c) {
-		pending_kill_client(c);
+		/* killclient,force sends SIGKILL directly for hung Wine/X11 apps. */
+		if (arg && arg->v && strcmp(arg->v, "force") == 0)
+			pending_force_kill_client(c);
+		else
+			pending_kill_client(c);
 	}
 	return 0;
 }

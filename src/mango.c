@@ -757,6 +757,7 @@ static bool check_hit_no_border(Client *c);
 static void reset_keyboard_layout(void);
 static void client_update_oldmonname_record(Client *c, Monitor *m);
 static void pending_kill_client(Client *c);
+static void pending_force_kill_client(Client *c);
 static uint32_t get_tags_first_tag_num(uint32_t source_tags);
 static void set_layer_open_animaiton(LayerSurface *l, struct wlr_box geo);
 static void init_fadeout_layers(LayerSurface *l);
@@ -4048,6 +4049,14 @@ void pending_kill_client(Client *c) {
 	if (!c || c->iskilling)
 		return;
 	client_send_close(c);
+}
+
+/* SIGKILL the client's process directly, bypassing graceful close. Opt-in via
+ * `killclient,force` for hung apps that ignore the close request. */
+void pending_force_kill_client(Client *c) {
+	if (!c || c->pid <= 0)
+		return;
+	kill(c->pid, SIGKILL);
 }
 
 void locksession(struct wl_listener *listener, void *data) {
