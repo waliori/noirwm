@@ -1093,7 +1093,13 @@ bool client_apply_focus_opacity(Client *c) {
 	float *border_color = get_border_color(c);
 	if (c->isfullscreen) {
 		c->opacity_animation.running = false;
-		client_set_opacity(c, 1);
+		// Upstream PR #585: opt-in, fullscreen windows respect their
+		// focused/unfocused opacity instead of being forced opaque.
+		float fs_opacity =
+			config.allow_fullscreen_opacity
+				? (c == selmon->sel ? c->focused_opacity : c->unfocused_opacity)
+				: 1.0f;
+		client_set_opacity(c, fs_opacity);
 	} else if (c->animation.running && c->animation.action == OPEN) {
 		c->opacity_animation.running = false;
 		struct timespec now;
