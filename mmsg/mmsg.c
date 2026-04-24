@@ -3,6 +3,7 @@
 #include "dynarr.h"
 #include <ctype.h>
 #include <poll.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -548,13 +549,19 @@ static void usage(void) {
 int32_t main(int32_t argc, char *argv[]) {
 	/* Don't run mmsg dispatches on a non-mango compositor — the Wayland
 	 * surface/protocol we bind to won't be there and ipc will segfault.
-	 * XDG_CURRENT_DESKTOP can contain several ':'-separated entries; accept
-	 * any that mentions "mango". */
-	const char *xdg_desktop = getenv("XDG_CURRENT_DESKTOP");
-	if (!xdg_desktop || !strstr(xdg_desktop, "mango")) {
-		fprintf(stderr, "mmsg: XDG_CURRENT_DESKTOP does not contain 'mango' "
-						"(got '%s'); refusing to run\n",
-				xdg_desktop ? xdg_desktop : "(unset)");
+	 * Some mango setups set XDG_CURRENT_DESKTOP to 'wlroots' (so GTK/Qt
+	 * apply wlroots-generic behaviour), in which case XDG_SESSION_DESKTOP
+	 * is the real session identifier. Accept a match on either variable. */
+	const char *xdg_current = getenv("XDG_CURRENT_DESKTOP");
+	const char *xdg_session = getenv("XDG_SESSION_DESKTOP");
+	bool in_mango = (xdg_current && strstr(xdg_current, "mango")) ||
+					(xdg_session && strstr(xdg_session, "mango"));
+	if (!in_mango) {
+		fprintf(stderr,
+				"mmsg: neither XDG_CURRENT_DESKTOP nor XDG_SESSION_DESKTOP "
+				"names 'mango' (current='%s', session='%s'); refusing to run\n",
+				xdg_current ? xdg_current : "(unset)",
+				xdg_session ? xdg_session : "(unset)");
 		exit(EXIT_FAILURE);
 	}
 
