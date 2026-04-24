@@ -95,28 +95,10 @@ int32_t unmark(const Arg *arg) {
 /*
  * Swap the focused window with the window holding the given mark.
  *
- * The two windows trade tag + monitor. Focus stays on our current monitor;
- * after the swap we see the mark's old client in our place (a natural
- * "bring that window to me, send mine there" gesture).
+ * The two windows trade tag + monitor. Focus stays on our current
+ * monitor+tag; after the swap we see the mark's old client in our place,
+ * and our old client is now on the mark's former tag/monitor.
  */
-static void swap_move(Client *c, Monitor *dst_mon, uint32_t dst_tags) {
-	uint32_t src_w = c->mon->w.width;
-	uint32_t src_h = c->mon->w.height;
-	setmon(c, dst_mon, dst_tags, true);
-	client_update_oldmonname_record(c, dst_mon);
-	reset_foreign_tolevel(c);
-	sync_ext_foreign_toplevel(c);
-	if (c->isfloating) {
-		c->float_geom.width =
-			(int32_t)((int64_t)c->float_geom.width * dst_mon->w.width / src_w);
-		c->float_geom.height =
-			(int32_t)((int64_t)c->float_geom.height * dst_mon->w.height / src_h);
-		c->float_geom =
-			setclient_coordinate_center(c, dst_mon, c->float_geom, 0, 0);
-		c->geom = c->float_geom;
-	}
-}
-
 int32_t swap_with_mark(const Arg *arg) {
 	if (!arg->v || !selmon || !selmon->sel)
 		return -1;
@@ -134,24 +116,55 @@ int32_t swap_with_mark(const Arg *arg) {
 	uint32_t b_tags = b->tags;
 	Monitor *b_mon = b->mon;
 
-	/* setmon(a) clears selmon->sel if a was it — save it before. */
-	if (a_mon->sel == a)
-		a_mon->sel = NULL;
-	if (b_mon->sel == b)
-		b_mon->sel = NULL;
+	if (a_mon == b_mon) {
+		/* Same-monitor swap: setmon() would early-return without doing
+		 * anything, so update tags directly. */
+		a->tags = b_tags;
+		b->tags = a_tags;
+		arrange(a_mon, false, false);
+	} else {
+		/* Cross-monitor swap: use setmon on both. Clear m->sel first so
+		 * setmon's "oldmon->sel==c" branch doesn't null them out mid-swap. */
+		if (a_mon->sel == a)
+			a_mon->sel = NULL;
+		if (b_mon->sel == b)
+			b_mon->sel = NULL;
 
-	swap_move(a, b_mon, b_tags);
-	swap_move(b, a_mon, a_tags);
+		uint32_t a_w = a_mon->w.width, a_h = a_mon->w.height;
+		uint32_t b_w = b_mon->w.width, b_h = b_mon->w.height;
 
-	arrange(a_mon, false, false);
-	if (b_mon != a_mon)
+		setmon(a, b_mon, b_tags, false);
+		reset_foreign_tolevel(a);
+		sync_ext_foreign_toplevel(a);
+		if (a->isfloating) {
+			a->float_geom.width =
+				(int32_t)((int64_t)a->float_geom.width * b_w / a_w);
+			a->float_geom.height =
+				(int32_t)((int64_t)a->float_geom.height * b_h / a_h);
+			a->float_geom =
+				setclient_coordinate_center(a, b_mon, a->float_geom, 0, 0);
+			a->geom = a->float_geom;
+		}
+
+		setmon(b, a_mon, a_tags, false);
+		reset_foreign_tolevel(b);
+		sync_ext_foreign_toplevel(b);
+		if (b->isfloating) {
+			b->float_geom.width =
+				(int32_t)((int64_t)b->float_geom.width * a_w / b_w);
+			b->float_geom.height =
+				(int32_t)((int64_t)b->float_geom.height * a_h / b_h);
+			b->float_geom =
+				setclient_coordinate_center(b, a_mon, b->float_geom, 0, 0);
+			b->geom = b->float_geom;
+		}
+
+		arrange(a_mon, false, false);
 		arrange(b_mon, false, false);
+	}
 
-	/* Stay on our original monitor; focus the window that's now in our
-	 * place (b, the mark's former client). */
+	/* Focus the mark's old client — it's now in our original slot. */
 	selmon = a_mon;
-	uint32_t focus_tag = get_tags_first_tag(a_tags);
-	view(&(Arg){.ui = focus_tag}, true);
 	focusclient(b, 1);
 	return 0;
 }
