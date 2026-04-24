@@ -5646,7 +5646,7 @@ void setup(void) {
 	tearing_new_object.notify = handle_tearing_new_object;
 	wl_signal_add(&tearing_control->events.new_object, &tearing_new_object);
 
-	wlr_content_type_manager_v1_create(dpy, 1);
+	content_type_manager = wlr_content_type_manager_v1_create(dpy, 1);
 	wlr_security_context_manager_v1_create(dpy);
 
 	struct wlr_xdg_toplevel_icon_manager_v1 *toplevel_icon_mgr =
