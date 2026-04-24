@@ -1086,6 +1086,15 @@ FuncType parse_func_name(char *func_name, Arg *arg, char *arg_value,
 	} else if (strcmp(func_name, "chvt") == 0) {
 		func = chvt;
 		(*arg).ui = atoi(arg_value);
+	} else if (strcmp(func_name, "mark") == 0) {
+		func = mark;
+		(*arg).v = strdup(arg_value);
+	} else if (strcmp(func_name, "focus_mark") == 0) {
+		func = focus_mark;
+		(*arg).v = strdup(arg_value);
+	} else if (strcmp(func_name, "unmark") == 0) {
+		func = unmark;
+		(*arg).v = strdup(arg_value);
 	} else if (strcmp(func_name, "spawn") == 0) {
 		func = spawn;
 		char *values[] = {arg_value, arg_value2, arg_value3, arg_value4,

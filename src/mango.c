@@ -1039,6 +1039,7 @@ static struct wl_event_source *sync_keymap;
 #include "animation/layer.h"
 #include "animation/tag.h"
 #include "dispatch/bind_define.h"
+#include "dispatch/marks.h"
 #include "ext-protocol/all.h"
 #include "fetch/fetch.h"
 #include "layout/arrange.h"
@@ -3497,6 +3498,7 @@ destroynotify(struct wl_listener *listener, void *data) {
 	}
 	if (c->ext_foreign_toplevel)
 		remove_ext_foreign_toplevel(c);
+	mark_drop_client(c);
 	wl_list_remove(&c->destroy.link);
 	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
