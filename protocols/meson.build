@@ -13,6 +13,7 @@ wayland_scanner_client = generator(
 wayland_xmls = [
 	wl_protocol_dir + '/stable/xdg-shell/xdg-shell.xml',
 	wl_protocol_dir + '/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml',
+	wl_protocol_dir + '/staging/content-type/content-type-v1.xml',
 	wl_protocol_dir + '/staging/cursor-shape/cursor-shape-v1.xml',
 	wl_protocol_dir + '/stable/tablet/tablet-v2.xml',
 	wl_protocol_dir + '/staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml',

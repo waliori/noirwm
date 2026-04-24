@@ -33,6 +33,7 @@
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_alpha_modifier_v1.h>
 #include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_content_type_v1.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_cursor_shape_v1.h>
 #include <wlr/types/wlr_data_control_v1.h>
@@ -5626,6 +5627,8 @@ void setup(void) {
 	tearing_control = wlr_tearing_control_manager_v1_create(dpy, 1);
 	tearing_new_object.notify = handle_tearing_new_object;
 	wl_signal_add(&tearing_control->events.new_object, &tearing_new_object);
+
+	wlr_content_type_manager_v1_create(dpy, 1);
 
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
