@@ -97,6 +97,7 @@ typedef struct {
 	int32_t force_tearing;
 	int32_t noswallow;
 	int32_t noblur;
+	int32_t nodim;
 	float focused_opacity;
 	float unfocused_opacity;
 	float scroller_proportion_single;
@@ -375,6 +376,8 @@ typedef struct {
 	int32_t allow_shortcuts_inhibit;
 	int32_t allow_lock_transparent;
 	int32_t allow_fullscreen_opacity;
+	int32_t dim_inactive;
+	float dim_strength;
 
 	struct xkb_rule_names xkb_rules;
 	char xkb_rules_rules[128];
@@ -1467,6 +1470,10 @@ bool parse_option(Config *config, char *key, char *value) {
 		config->allow_lock_transparent = atoi(value);
 	} else if (strcmp(key, "allow_fullscreen_opacity") == 0) {
 		config->allow_fullscreen_opacity = atoi(value);
+	} else if (strcmp(key, "dim_inactive") == 0) {
+		config->dim_inactive = atoi(value);
+	} else if (strcmp(key, "dim_strength") == 0) {
+		config->dim_strength = atof(value);
 	} else if (strcmp(key, "no_border_when_single") == 0) {
 		config->no_border_when_single = atoi(value);
 	} else if (strcmp(key, "no_radius_when_single") == 0) {
@@ -2125,6 +2132,7 @@ bool parse_option(Config *config, char *key, char *value) {
 		rule->force_tearing = -1;
 		rule->noswallow = -1;
 		rule->noblur = -1;
+		rule->nodim = -1;
 		rule->nofocus = -1;
 		rule->stayfocused = -1;
 		rule->nofadein = -1;
@@ -2249,6 +2257,8 @@ bool parse_option(Config *config, char *key, char *value) {
 					rule->noswallow = atoi(val);
 				} else if (strcmp(key, "noblur") == 0) {
 					rule->noblur = atoi(val);
+				} else if (strcmp(key, "nodim") == 0) {
+					rule->nodim = atoi(val);
 				} else if (strcmp(key, "scroller_proportion") == 0) {
 					rule->scroller_proportion = atof(val);
 				} else if (strcmp(key, "isfullscreen") == 0) {
@@ -3270,6 +3280,8 @@ void override_config(void) {
 		CLAMP_INT(config.allow_lock_transparent, 0, 1);
 	config.allow_fullscreen_opacity =
 		CLAMP_INT(config.allow_fullscreen_opacity, 0, 1);
+	config.dim_inactive = CLAMP_INT(config.dim_inactive, 0, 1);
+	config.dim_strength = CLAMP_FLOAT(config.dim_strength, 0.0f, 0.95f);
 	config.axis_bind_apply_timeout =
 		CLAMP_INT(config.axis_bind_apply_timeout, 0, 1000);
 	config.focus_on_activate = CLAMP_INT(config.focus_on_activate, 0, 1);
@@ -3423,6 +3435,8 @@ void set_value_default() {
 	config.allow_shortcuts_inhibit = SHORTCUTS_INHIBIT_ENABLE;
 	config.allow_lock_transparent = 0;
 	config.allow_fullscreen_opacity = 0;
+	config.dim_inactive = 0;
+	config.dim_strength = 0.3f;
 	config.no_border_when_single = 0;
 	config.no_radius_when_single = 0;
 	config.snap_distance = 30;

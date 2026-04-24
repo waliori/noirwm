@@ -444,6 +444,14 @@ void apply_border(Client *c) {
 	wlr_scene_rect_set_corner_radius(c->border, config.border_radius,
 									 current_corner_location);
 	wlr_scene_rect_set_clipped_region(c->border, clipped_region);
+
+	/* Size the dim overlay to track the client's visible rect. */
+	if (c->dim) {
+		wlr_scene_node_set_position(&c->dim->node, rect_x, rect_y);
+		wlr_scene_rect_set_size(c->dim, rect_width, rect_height);
+		wlr_scene_rect_set_corner_radius(c->dim, config.border_radius,
+										 current_corner_location);
+	}
 }
 
 struct ivec2 clip_to_hide(Client *c, struct wlr_box *clip_box) {

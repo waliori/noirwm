@@ -318,6 +318,7 @@ struct Client {
 	struct wlr_scene_tree *scene;
 	struct wlr_scene_rect *border; /* top, bottom, left, right */
 	struct wlr_scene_shadow *shadow;
+	struct wlr_scene_rect *dim; /* darken overlay when unfocused */
 	struct wlr_scene_tree *scene_surface;
 	struct wl_list link;
 	struct wl_list flink;
@@ -406,6 +407,7 @@ struct Client {
 	bool fake_no_border;
 	int32_t nofocus;
 	int32_t stayfocused;
+	int32_t nodim;
 	int32_t nofadein;
 	int32_t nofadeout;
 	int32_t no_force_center;
@@ -1415,6 +1417,7 @@ static void apply_rule_properties(Client *c, const ConfigWinRule *r) {
 	APPLY_INT_PROP(c, r, indleinhibit_when_focus);
 	APPLY_INT_PROP(c, r, isunglobal);
 	APPLY_INT_PROP(c, r, noblur);
+	APPLY_INT_PROP(c, r, nodim);
 	APPLY_INT_PROP(c, r, allow_shortcuts_inhibit);
 
 	APPLY_FLOAT_PROP(c, r, scroller_proportion);
@@ -3644,9 +3647,14 @@ void focusclient(Client *c, int32_t lift) {
 			last_focus_client != c) {
 			last_focus_client->isfocusing = false;
 			client_set_unfocused_opacity_animation(last_focus_client);
+			if (last_focus_client->dim && config.dim_inactive &&
+				!last_focus_client->nodim)
+				wlr_scene_node_set_enabled(&last_focus_client->dim->node, true);
 		}
 
 		client_set_focused_opacity_animation(c);
+		if (c->dim)
+			wlr_scene_node_set_enabled(&c->dim->node, false);
 
 		// decide whether need to re-arrange
 
@@ -3676,6 +3684,8 @@ void focusclient(Client *c, int32_t lift) {
 			!um->sel->iskilling && um->sel->isfocusing) {
 			um->sel->isfocusing = false;
 			client_set_unfocused_opacity_animation(um->sel);
+			if (um->sel->dim && config.dim_inactive && !um->sel->nodim)
+				wlr_scene_node_set_enabled(&um->sel->dim->node, true);
 		}
 	}
 
@@ -4148,6 +4158,7 @@ void init_client_properties(Client *c) {
 	c->noswallow = 0;
 	c->isterm = 0;
 	c->noblur = 0;
+	c->nodim = 0;
 	c->tearing_hint = 0;
 	c->overview_isfullscreenbak = 0;
 	c->overview_ismaximizescreenbak = 0;
@@ -4295,6 +4306,17 @@ mapnotify(struct wl_listener *listener, void *data) {
 
 	wlr_scene_node_lower_to_bottom(&c->shadow->node);
 	wlr_scene_node_set_enabled(&c->shadow->node, true);
+
+	/* Dim overlay (Hyprland-style): a semi-opaque black rect on top of the
+	 * client scene. Enabled only while the client is unfocused and
+	 * dim_inactive is on. Created here and sized/toggled later. */
+	c->dim = wlr_scene_rect_create(c->scene, 0, 0,
+								   (float[]){0.0f, 0.0f, 0.0f,
+											 config.dim_strength});
+	wlr_scene_rect_set_corner_radius(c->dim, config.border_radius,
+									 config.border_radius_location_default);
+	wlr_scene_node_raise_to_top(&c->dim->node);
+	wlr_scene_node_set_enabled(&c->dim->node, false);
 
 	if (config.new_is_master && selmon && !is_scroller_layout(selmon))
 		// tile at the top
