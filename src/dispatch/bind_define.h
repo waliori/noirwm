@@ -983,8 +983,8 @@ int32_t switch_keyboard_layout(const Arg *arg) {
 	return 0;
 }
 
-int32_t switch_layout(const Arg *arg) {
-
+/* dir = +1 cycles forward, -1 backward. Used by switch_layout / switch_layout_prev. */
+static int32_t switch_layout_dir(int dir) {
 	int32_t jk, ji;
 	char *target_layout_name = NULL;
 	uint32_t len;
@@ -994,30 +994,26 @@ int32_t switch_layout(const Arg *arg) {
 
 	if (config.circle_layout_count != 0) {
 		for (jk = 0; jk < config.circle_layout_count; jk++) {
-
 			len = MAX(
 				strlen(config.circle_layout[jk]),
 				strlen(selmon->pertag->ltidxs[selmon->pertag->curtag]->name));
-
 			if (strncmp(config.circle_layout[jk],
 						selmon->pertag->ltidxs[selmon->pertag->curtag]->name,
 						len) == 0) {
-				target_layout_name = jk == config.circle_layout_count - 1
-										 ? config.circle_layout[0]
-										 : config.circle_layout[jk + 1];
+				int32_t next = (jk + dir + config.circle_layout_count) %
+							   config.circle_layout_count;
+				target_layout_name = config.circle_layout[next];
 				break;
 			}
 		}
 
-		if (!target_layout_name) {
+		if (!target_layout_name)
 			target_layout_name = config.circle_layout[0];
-		}
 
 		for (ji = 0; ji < LENGTH(layouts); ji++) {
 			len = MAX(strlen(layouts[ji].name), strlen(target_layout_name));
 			if (strncmp(layouts[ji].name, target_layout_name, len) == 0) {
 				selmon->pertag->ltidxs[selmon->pertag->curtag] = &layouts[ji];
-
 				break;
 			}
 		}
@@ -1030,8 +1026,8 @@ int32_t switch_layout(const Arg *arg) {
 	for (jk = 0; jk < LENGTH(layouts); jk++) {
 		if (strcmp(layouts[jk].name,
 				   selmon->pertag->ltidxs[selmon->pertag->curtag]->name) == 0) {
-			selmon->pertag->ltidxs[selmon->pertag->curtag] =
-				jk == LENGTH(layouts) - 1 ? &layouts[0] : &layouts[jk + 1];
+			int32_t next = (jk + dir + LENGTH(layouts)) % LENGTH(layouts);
+			selmon->pertag->ltidxs[selmon->pertag->curtag] = &layouts[next];
 			clear_fullscreen_and_maximized_state(selmon);
 			arrange(selmon, false, false);
 			printstatus();
@@ -1039,6 +1035,14 @@ int32_t switch_layout(const Arg *arg) {
 		}
 	}
 	return 0;
+}
+
+int32_t switch_layout(const Arg *arg) {
+	return switch_layout_dir(+1);
+}
+
+int32_t switch_layout_prev(const Arg *arg) {
+	return switch_layout_dir(-1);
 }
 
 int32_t switch_proportion_preset(const Arg *arg) {
