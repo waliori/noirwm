@@ -4362,6 +4362,7 @@ mapnotify(struct wl_listener *listener, void *data) {
 	c->is_pending_open_animation = true;
 	resize(c, c->geom, 0);
 	printstatus();
+	auto_dump_clients_maybe();
 }
 
 void maximizenotify(struct wl_listener *listener, void *data) {
@@ -6281,6 +6282,7 @@ void unmapnotify(struct wl_listener *listener, void *data) {
 	wlr_scene_node_destroy(&c->scene->node);
 	printstatus();
 	motionnotify(0, NULL, 0, 0, 0, 0);
+	auto_dump_clients_maybe();
 }
 
 void updatemons(struct wl_listener *listener, void *data) {
@@ -6435,6 +6437,8 @@ void updatetitle(struct wl_listener *listener, void *data) {
 	update_ext_foreign_toplevel(c);
 	if (c == focustop(c->mon))
 		printstatus();
+	auto_dump_clients_maybe();
+	auto_dump_marks_maybe(); /* mark titles can change too */
 }
 
 void handle_toplevel_icon_set(struct wl_listener *listener, void *data) {
@@ -6450,6 +6454,8 @@ void handle_toplevel_icon_set(struct wl_listener *listener, void *data) {
 			(c->icon && c->icon->name) ? c->icon->name : "(no name)");
 	if (c == focustop(c->mon))
 		printstatus();
+	auto_dump_clients_maybe();
+	auto_dump_marks_maybe(); /* a marked client's icon may have changed */
 }
 
 void // 17 fix to 0.5

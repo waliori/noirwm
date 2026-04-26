@@ -306,6 +306,8 @@ typedef struct {
 	float shadowscolor[4];
 
 	int32_t smartgaps;
+	int32_t auto_dump_clients; /* auto-write /tmp/mango_clients.json on every relevant state change */
+	int32_t auto_dump_marks;   /* auto-write /tmp/mango_marks.json on every mark mutation */
 	uint32_t gappih;
 	uint32_t gappiv;
 	uint32_t gappoh;
@@ -1691,6 +1693,10 @@ bool parse_option(Config *config, char *key, char *value) {
 		config->drag_warp_cursor = atoi(value);
 	} else if (strcmp(key, "smartgaps") == 0) {
 		config->smartgaps = atoi(value);
+	} else if (strcmp(key, "auto_dump_clients") == 0) {
+		config->auto_dump_clients = atoi(value);
+	} else if (strcmp(key, "auto_dump_marks") == 0) {
+		config->auto_dump_marks = atoi(value);
 	} else if (strcmp(key, "repeat_rate") == 0) {
 		config->repeat_rate = atoi(value);
 	} else if (strcmp(key, "repeat_delay") == 0) {
@@ -3351,6 +3357,8 @@ void override_config(void) {
 		CLAMP_FLOAT(config.scratchpad_height_ratio, 0.1f, 1.0f);
 	config.borderpx = CLAMP_INT(config.borderpx, 0, 200);
 	config.smartgaps = CLAMP_INT(config.smartgaps, 0, 1);
+	config.auto_dump_clients = CLAMP_INT(config.auto_dump_clients, 0, 1);
+	config.auto_dump_marks = CLAMP_INT(config.auto_dump_marks, 0, 1);
 	config.blur = CLAMP_INT(config.blur, 0, 1);
 	config.blur_layer = CLAMP_INT(config.blur_layer, 0, 1);
 	config.blur_optimized = CLAMP_INT(config.blur_optimized, 0, 1);
@@ -3412,6 +3420,8 @@ void set_value_default() {
 	config.hotarea_corner = BOTTOM_LEFT;
 	config.enable_hotarea = 1;
 	config.smartgaps = 0;
+	config.auto_dump_clients = 0;
+	config.auto_dump_marks = 0;
 	config.sloppyfocus = 1;
 	config.gappih = 5;
 	config.gappiv = 5;

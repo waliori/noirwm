@@ -27,15 +27,22 @@ static struct mango_mark *mark_find(const char *name) {
 	return NULL;
 }
 
+/* Forward decl — defined later in this file once dumpmarks_to_path exists. */
+static inline void auto_dump_marks_maybe(void);
+
 /* Drop every mark that references this client (called on client destroy). */
 void mark_drop_client(Client *c) {
 	struct mango_mark *m, *tmp;
+	bool changed = false;
 	wl_list_for_each_safe(m, tmp, &marks, link) {
 		if (m->c == c) {
 			wl_list_remove(&m->link);
 			free(m);
+			changed = true;
 		}
 	}
+	if (changed)
+		auto_dump_marks_maybe();
 }
 
 int32_t mark(const Arg *arg) {
@@ -50,6 +57,7 @@ int32_t mark(const Arg *arg) {
 		if (existing->c == selmon->sel)
 			return 0; /* idempotent */
 		existing->c = selmon->sel;
+		auto_dump_marks_maybe();
 		return 0;
 	}
 
@@ -57,6 +65,7 @@ int32_t mark(const Arg *arg) {
 	snprintf(m->name, sizeof(m->name), "%s", name);
 	m->c = selmon->sel;
 	wl_list_insert(&marks, &m->link);
+	auto_dump_marks_maybe();
 	return 0;
 }
 
@@ -89,6 +98,7 @@ int32_t unmark(const Arg *arg) {
 		return -1;
 	wl_list_remove(&m->link);
 	free(m);
+	auto_dump_marks_maybe();
 	return 0;
 }
 
@@ -166,21 +176,23 @@ int32_t swap_with_mark(const Arg *arg) {
 	/* Focus the mark's old client — it's now in our original slot. */
 	selmon = a_mon;
 	focusclient(b, 1);
+	auto_dump_marks_maybe(); /* monitor/tags on the marked client may have changed */
 	return 0;
 }
 
 /*
  * Dump every mark to a JSON array. Mirrors dumpclients shape so external tools
- * (rofi, Quickshell, etc.) can build a mark-jumping UI by polling a single file.
+ * (rofi, Quickshell, etc.) can build a mark-jumping UI. Pair with
+ * auto_dump_marks=1 + Quickshell FileView { watchChanges: true } for an
+ * inotify-driven, zero-poll UI.
  */
-int32_t dumpmarks(const Arg *arg) {
-	const char *filepath = arg->v;
+static void dumpmarks_to_path(const char *filepath) {
 	if (!filepath || filepath[0] == '\0')
 		filepath = "/tmp/mango_marks.json";
 
 	FILE *f = fopen(filepath, "w");
 	if (!f)
-		return 0;
+		return;
 
 	struct mango_mark *m;
 	int first = 1;
@@ -206,5 +218,14 @@ int32_t dumpmarks(const Arg *arg) {
 	}
 	fprintf(f, "]\n");
 	fclose(f);
+}
+
+int32_t dumpmarks(const Arg *arg) {
+	dumpmarks_to_path(arg->v);
 	return 0;
+}
+
+static inline void auto_dump_marks_maybe(void) {
+	if (config.auto_dump_marks)
+		dumpmarks_to_path("/tmp/mango_marks.json");
 }

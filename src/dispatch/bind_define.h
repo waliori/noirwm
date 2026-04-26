@@ -1945,13 +1945,14 @@ static void json_escape_string(FILE *f, const char *s) {
 	fputc('"', f);
 }
 
-int32_t dumpclients(const Arg *arg) {
-	const char *filepath = arg->v;
+/* Core dump used by both the dispatcher and the auto-write hook. */
+static void dumpclients_to_path(const char *filepath) {
 	if (!filepath || filepath[0] == '\0')
 		filepath = "/tmp/mango_clients.json";
 
 	FILE *f = fopen(filepath, "w");
-	if (!f) return 0;
+	if (!f)
+		return;
 
 	Client *c;
 	int first = 1;
@@ -1977,6 +1978,18 @@ int32_t dumpclients(const Arg *arg) {
 	}
 	fprintf(f, "]\n");
 	fclose(f);
+}
+
+int32_t dumpclients(const Arg *arg) {
+	dumpclients_to_path(arg->v);
 	return 0;
+}
+
+/* Called from event handlers to push a fresh JSON when the config flag is on.
+ * Quickshell consumers use FileView { watchChanges: true } to react via inotify
+ * — no polling. */
+static inline void auto_dump_clients_maybe(void) {
+	if (config.auto_dump_clients)
+		dumpclients_to_path("/tmp/mango_clients.json");
 }
 
