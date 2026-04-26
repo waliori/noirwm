@@ -87,6 +87,13 @@ int32_t focus_mark(const Arg *arg) {
 		selmon = c->mon;
 	}
 	focusclient(c, 1);
+	/* Warp the pointer onto the focused window so cursor follows focus.
+	 * Mirrors the destroydragicon pattern (focusclient → motionnotify) so
+	 * pointer enter/leave fires and the right cursor shape gets set. */
+	wlr_cursor_warp(cursor, NULL,
+					c->geom.x + c->geom.width / 2.0,
+					c->geom.y + c->geom.height / 2.0);
+	motionnotify(0, NULL, 0, 0, 0, 0);
 	return 0;
 }
 
