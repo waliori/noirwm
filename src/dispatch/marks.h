@@ -229,3 +229,16 @@ static inline void auto_dump_marks_maybe(void) {
 	if (config.auto_dump_marks)
 		dumpmarks_to_path("/tmp/mango_marks.json");
 }
+
+/*
+ * Toggle dispatcher: if a mark with this name exists, focus it (jump);
+ * otherwise create the mark on the focused client (save). One bind = save+jump.
+ */
+int32_t focus_mark_or_set(const Arg *arg) {
+	if (!arg->v)
+		return -1;
+	struct mango_mark *m = mark_find(arg->v);
+	if (m && m->c)
+		return focus_mark(arg);
+	return mark(arg);
+}

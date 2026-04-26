@@ -38,6 +38,7 @@ int32_t exchange_stack_client(const Arg *arg);
 int32_t killclient(const Arg *arg);
 int32_t mark(const Arg *arg);
 int32_t focus_mark(const Arg *arg);
+int32_t focus_mark_or_set(const Arg *arg);
 int32_t unmark(const Arg *arg);
 int32_t swap_with_mark(const Arg *arg);
 int32_t dumpmarks(const Arg *arg);

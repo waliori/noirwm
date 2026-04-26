@@ -1112,6 +1112,9 @@ FuncType parse_func_name(char *func_name, Arg *arg, char *arg_value,
 	} else if (strcmp(func_name, "focus_mark") == 0) {
 		func = focus_mark;
 		(*arg).v = strdup(arg_value);
+	} else if (strcmp(func_name, "focus_mark_or_set") == 0) {
+		func = focus_mark_or_set;
+		(*arg).v = strdup(arg_value);
 	} else if (strcmp(func_name, "unmark") == 0) {
 		func = unmark;
 		(*arg).v = strdup(arg_value);
