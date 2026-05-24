@@ -383,8 +383,18 @@ static struct wlr_texture *fx_texture_from_dmabuf(
 		glGenTextures(1, &buffer->tex);
 		invalid = true;
 	} else {
-		// External changes are immediately made visible by the GL implementation
-		invalid = !buffer->external_only;
+		// EGLImage->texture binding is permanent for the lifetime of the GL
+		// texture. Per OES_EGL_image: once glEGLImageTargetTexture2DOES has
+		// been called, the texture's storage IS the EGLImage (which is the
+		// dmabuf). Updates via FBO renders are visible through the texture
+		// without re-targeting.
+		//
+		// The old `invalid = !buffer->external_only` rebound the texture on
+		// EVERY fx_texture_from_buffer() call, which on the NVIDIA proprietary
+		// driver issues a 4-call RM ioctl sequence (DUP_OBJECT + MAP_DMA +
+		// UNMAP + FREE) that each leak ~64 B of kmalloc-64 slab. With blur
+		// firing this 4+ times per frame per surface, the leak hits ~1.8 GB/day.
+		invalid = false;
 	}
 
 	if (invalid) {
