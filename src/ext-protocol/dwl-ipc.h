@@ -70,14 +70,22 @@ void dwl_ipc_manager_get_output(struct wl_client *client,
 								struct wl_resource *output) {
 	DwlIpcOutput *ipc_output;
 	struct wlr_output *op = wlr_output_from_resource(output);
-	if (!op)
-		return;
-	Monitor *monitor = op->data;
+	Monitor *monitor = op ? op->data : NULL;
 	struct wl_resource *output_resource =
 		wl_resource_create(client, &zdwl_ipc_output_v2_interface,
 						   wl_resource_get_version(resource), id);
 	if (!output_resource)
 		return;
+
+	/* The client raced an output's death (inert wl_output, or a monitor
+	 * mid-teardown): bind an inert resource instead of leaving the new id
+	 * dangling, which would kill the client with an invalid-object error
+	 * on its next request. Every request handler tolerates NULL data. */
+	if (!monitor || monitor->iscleanuping) {
+		wl_resource_set_implementation(output_resource,
+									   &dwl_output_implementation, NULL, NULL);
+		return;
+	}
 
 	ipc_output = ecalloc(1, sizeof(*ipc_output));
 	ipc_output->resource = output_resource;
@@ -95,6 +103,8 @@ void dwl_ipc_manager_release(struct wl_client *client,
 
 static void dwl_ipc_output_destroy(struct wl_resource *resource) {
 	DwlIpcOutput *ipc_output = wl_resource_get_user_data(resource);
+	if (!ipc_output)
+		return;
 	wl_list_remove(&ipc_output->link);
 	free(ipc_output);
 }

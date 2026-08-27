@@ -106,7 +106,11 @@ void remove_foreign_topleve(Client *c) {
 }
 
 void add_foreign_toplevel(Client *c) {
-	if (!c || !c->mon || !c->mon->wlr_output || !c->mon->wlr_output->enabled)
+	/* iscleanuping: never register listeners on a dying output — a bind
+	 * listener added during its destroy emission is never cleaned up and
+	 * trips wlr_output_finish()'s empty-listener-list asserts. */
+	if (!c || !c->mon || !c->mon->wlr_output ||
+		!c->mon->wlr_output->enabled || c->mon->iscleanuping)
 		return;
 
 	c->foreign_toplevel =

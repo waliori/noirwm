@@ -526,6 +526,7 @@ struct Monitor {
 	uint32_t seltags;
 	uint32_t tagset[2];
 	bool skiping_frame;
+	bool iscleanuping;
 	uint32_t resizing_count_pending;
 	uint32_t resizing_count_current;
 
@@ -995,6 +996,8 @@ static struct wl_listener cursor_motion = {.notify = motionrelative};
 static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
 static struct wl_listener gpu_reset = {.notify = gpureset};
 static struct wl_listener layout_change = {.notify = updatemons};
+static struct wl_listener toplevel_icon_set = {
+	.notify = handle_toplevel_icon_set};
 static struct wl_listener new_idle_inhibitor = {.notify = createidleinhibitor};
 static struct wl_listener new_input_device = {.notify = inputdevice};
 static struct wl_listener new_virtual_keyboard = {.notify = virtualkeyboard};
@@ -1878,6 +1881,9 @@ void arrangelayers(Monitor *m) {
 	if (!m->wlr_output->enabled)
 		return;
 
+	if (m->iscleanuping)
+		return;
+
 	/* Arrange exclusive surfaces from top->bottom */
 	for (i = 3; i >= 0; i--)
 		arrangelayer(m, &m->layers[i], &usable_area, 1);
@@ -2351,6 +2357,7 @@ void cleanuplisteners(void) {
 	wl_list_remove(&start_drag.link);
 	wl_list_remove(&new_session_lock.link);
 	wl_list_remove(&tearing_new_object.link);
+	wl_list_remove(&toplevel_icon_set.link);
 	wl_list_remove(&keyboard_shortcuts_inhibit_new_inhibitor.link);
 	if (drm_lease_manager) {
 		wl_list_remove(&drm_lease_request.link);
@@ -2393,7 +2400,38 @@ void cleanup(void) {
 void cleanupmon(struct wl_listener *listener, void *data) {
 	Monitor *m = wl_container_of(listener, m, destroy);
 	LayerSurface *l = NULL, *tmp = NULL;
+	DwlIpcOutput *ipc_output = NULL, *ipc_output_tmp = NULL;
 	uint32_t i;
+
+	m->iscleanuping = true;
+
+	/* Unhook from the compositor lists first: rendermon can't fire on the
+	 * dying output, and updatemons (layout.change) can't see it in `mons`
+	 * and re-add it to the layout while we tear it down below. */
+	wl_list_remove(&m->destroy.link);
+	wl_list_remove(&m->frame.link);
+	wl_list_remove(&m->link);
+	wl_list_remove(&m->request_state.link);
+
+	/* Destroy dwl-ipc output resources while m is still alive: each one
+	 * holds a Monitor pointer and a link into m->dwl_ipc_outputs, so a
+	 * client releasing its zdwl_ipc_output_v2 after free(m) would make
+	 * dwl_ipc_output_destroy() write into freed memory. */
+	wl_list_for_each_safe(ipc_output, ipc_output_tmp, &m->dwl_ipc_outputs,
+						  link)
+		wl_resource_destroy(ipc_output->resource);
+
+	/* Take the output out of the scene and the layout BEFORE destroying
+	 * its layer surfaces. Their unmap handlers re-enter focus/arrange
+	 * paths, and while a scene output for the dying wlr_output exists,
+	 * that churn can make the scene call wlr_surface_send_enter() on it.
+	 * A bind/destroy listener pair added while output->events.destroy is
+	 * being emitted lands behind the emission cursor, is never notified,
+	 * and leaks — tripping wlr_output_finish()'s
+	 * `wl_list_empty(&output->events.bind.listener_list)` assert. */
+	wlr_scene_output_destroy(m->scene_output);
+	m->scene_output = NULL;
+	wlr_output_layout_remove(output_layout, m->wlr_output);
 
 	/* m->layers[i] are intentionally not unlinked */
 	for (i = 0; i < LENGTH(m->layers); i++) {
@@ -2406,15 +2444,9 @@ void cleanupmon(struct wl_listener *listener, void *data) {
 	wlr_ext_workspace_group_handle_v1_destroy(m->ext_group);
 	cleanup_workspaces_by_monitor(m);
 
-	wl_list_remove(&m->destroy.link);
-	wl_list_remove(&m->frame.link);
-	wl_list_remove(&m->link);
-	wl_list_remove(&m->request_state.link);
 	if (m->lock_surface)
 		destroylocksurface(&m->destroy_lock_surface, NULL);
 	m->wlr_output->data = NULL;
-	wlr_output_layout_remove(output_layout, m->wlr_output);
-	wlr_scene_output_destroy(m->scene_output);
 
 	closemon(m);
 	if (m->blur) {
@@ -2426,7 +2458,6 @@ void cleanupmon(struct wl_listener *listener, void *data) {
 		wl_event_source_remove(m->skip_frame_timeout);
 		m->skip_frame_timeout = NULL;
 	}
-	m->wlr_output->data = NULL;
 	free(m->pertag);
 	free(m);
 }
@@ -3105,6 +3136,7 @@ void createmon(struct wl_listener *listener, void *data) {
 
 	m->wlr_output = wlr_output;
 	m->wlr_output->data = m;
+	m->iscleanuping = false;
 
 	wl_list_init(&m->dwl_ipc_outputs);
 
@@ -5765,11 +5797,9 @@ void setup(void) {
 
 	struct wlr_xdg_toplevel_icon_manager_v1 *toplevel_icon_mgr =
 		wlr_xdg_toplevel_icon_manager_v1_create(dpy, 1);
-	static struct wl_listener toplevel_icon_set_listener = {
-		.notify = handle_toplevel_icon_set,
-	};
-	wl_signal_add(&toplevel_icon_mgr->events.set_icon,
-		&toplevel_icon_set_listener);
+	/* Removed in cleanuplisteners(): the icon manager asserts an empty
+	 * set_icon listener list when the display is destroyed. */
+	wl_signal_add(&toplevel_icon_mgr->events.set_icon, &toplevel_icon_set);
 
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
