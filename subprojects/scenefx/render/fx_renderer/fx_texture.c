@@ -246,17 +246,23 @@ static uint32_t fx_texture_preferred_read_format(struct wlr_texture *wlr_texture
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	pop_fx_debug(texture->fx_renderer);
 
+	// Never hand out a 24-bit read format. NVIDIA reports GL_RGB as its
+	// implementation read format, so every screencopy / image-copy-capture
+	// client was offered BGR888 and nothing else. Clients written for 32-bit
+	// pixels then read past the buffer (swaylock-effects on a rotated output)
+	// or have no usable format at all (xdg-desktop-portal-luminous panics).
+	// Fall through to the 32-bit choice below instead.
 	const struct fx_pixel_format *pix_fmt =
 		get_fx_format_from_gl(gl_format, gl_type, alpha_size > 0);
-	if (pix_fmt != NULL) {
+	if (pix_fmt != NULL && pix_fmt->drm_format != DRM_FORMAT_BGR888) {
 		fmt = pix_fmt->drm_format;
 		goto out;
 	}
 
-	if (texture->fx_renderer->exts.EXT_read_format_bgra) {
-		fmt = DRM_FORMAT_XRGB8888;
-		goto out;
-	}
+	// XBGR8888 is GL_RGBA + GL_UNSIGNED_BYTE, the one pair glReadPixels must
+	// always accept. (GL_EXT_read_format_bgra only lets a driver *report*
+	// BGRA as its read format; it does not make BGRA reads valid everywhere.)
+	fmt = DRM_FORMAT_XBGR8888;
 
 out:
 	wlr_egl_restore_context(&prev_ctx);
